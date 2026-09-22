@@ -67,7 +67,11 @@ func (m model) menuView() string {
 		}
 		lines = append(lines, style.Render(label))
 	}
-	lines = append(lines, "", "↑ ↓ 選択   Enter 決定", "1〜5: すぐあそぶ   q: おわり")
+	mode := "ふつう"
+	if m.dotMode {
+		mode = "ドット"
+	}
+	lines = append(lines, "", "↑ ↓ 選択   Enter 決定", "d: もじ="+mode+"   q: おわり")
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#BDA0FF")).Padding(1, 2).
 		Render(lipgloss.JoinVertical(lipgloss.Center, lines...))
@@ -76,10 +80,14 @@ func (m model) menuView() string {
 func (m model) playView() (string, string) {
 	switch m.screen {
 	case ScreenGojuon:
-		body := lipgloss.JoinVertical(lipgloss.Center,
-			colorful("★  こんにちは！  ★", m.color), "",
-			m.kanaCard(string(gojuon[m.kanaIndex])), "",
-			fmt.Sprintf("%d / %d", m.kanaIndex+1, len(gojuon)))
+		char := string(gojuon[m.kanaIndex])
+		display, dotted := m.kanaDisplay(char)
+		parts := []string{colorful("★  こんにちは！  ★", m.color), "", display, "", fmt.Sprintf("%d / %d", m.kanaIndex+1, len(gojuon))}
+		if dotted {
+			// Give the oversized glyph the vertical space normally used by the greeting.
+			parts = []string{display, "", fmt.Sprintf("%d / %d", m.kanaIndex+1, len(gojuon))}
+		}
+		body := lipgloss.JoinVertical(lipgloss.Center, parts...)
 		return body, "Space: つぎの もじ"
 	case ScreenName:
 		if !m.namePlaying {
@@ -102,7 +110,8 @@ func (m model) playView() (string, string) {
 			return lipgloss.JoinVertical(lipgloss.Center, colorful("✨ ★ ✨", m.color), "",
 				colorful(name, m.color), "", colorful("よめたね！", m.color+2)), "Space: もういちど"
 		}
-		return lipgloss.JoinVertical(lipgloss.Center, m.kanaCard(m.name[m.nameIndex]), "",
+		display, _ := m.kanaDisplay(m.name[m.nameIndex])
+		return lipgloss.JoinVertical(lipgloss.Center, display, "",
 			fmt.Sprintf("%d / %d", m.nameIndex+1, len(m.name))), "Space: つぎの もじ"
 	case ScreenMissing, ScreenMistake:
 		return m.questionView()
@@ -111,6 +120,36 @@ func (m model) playView() (string, string) {
 			m.accent().Render(strings.Repeat("─", m.laneWidth()))), "Space: つぎの ぎょう"
 	}
 	return "", ""
+}
+
+func (m model) kanaDisplay(char string) (string, bool) {
+	runes := []rune(char)
+	var pattern [14]uint32
+	ok := false
+	if len(runes) == 1 {
+		pattern, ok = dotKanaPatterns[runes[0]]
+	}
+	// Keep the compact card when a small terminal cannot show every dot.
+	if !m.dotMode || len(runes) != 1 || !ok || m.width < 44 || m.height < 23 {
+		return m.kanaCard(char), false
+	}
+
+	lines := make([]string, len(pattern))
+	for row, dots := range pattern {
+		var line strings.Builder
+		line.Grow(dotKanaWidth * 2)
+		for column := dotKanaWidth - 1; column >= 0; column-- {
+			if dots&(1<<column) != 0 {
+				line.WriteString("██")
+			} else {
+				line.WriteString("  ")
+			}
+		}
+		lines[row] = lipgloss.NewStyle().Bold(true).
+			Foreground(lipgloss.Color(palette[(m.color+row/2)%len(palette)])).
+			Render(line.String())
+	}
+	return strings.Join(lines, "\n"), true
 }
 
 func (m model) kanaCard(char string) string {

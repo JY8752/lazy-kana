@@ -32,6 +32,74 @@ func TestGojuonCycle(t *testing.T) {
 	}
 }
 
+func TestDisplayMode(t *testing.T) {
+	m := initialModel()
+	if _, dotted := m.kanaDisplay("あ"); dotted {
+		t.Fatal("normal card must be the default display mode")
+	}
+	m = press(m, 'd', "d")
+	if !m.dotMode {
+		t.Fatal("d must enable dot mode from the menu")
+	}
+
+	display, dotted := m.kanaDisplay("あ")
+	if !dotted {
+		t.Fatal("あ must use the large dot-art glyph on an 80x24 terminal")
+	}
+	plain := ansi.Strip(display)
+	lines := strings.Split(plain, "\n")
+	if len(lines) != 14 || strings.Count(plain, "█") < 100 {
+		t.Fatalf("dot art is not large enough: %d lines, %d blocks", len(lines), strings.Count(plain, "█"))
+	}
+	for _, line := range lines {
+		if ansi.StringWidth(line) != 36 {
+			t.Fatalf("dot-art row width = %d, want 36", ansi.StringWidth(line))
+		}
+	}
+	assertFits(t, m.View().Content, 80, 24)
+	for index, char := range gojuon {
+		display, dotted = m.kanaDisplay(string(char))
+		if !dotted {
+			t.Fatalf("%c is missing its dot-art glyph", char)
+		}
+		lines = strings.Split(ansi.Strip(display), "\n")
+		if len(lines) != 14 {
+			t.Fatalf("%c has %d rows, want 14", char, len(lines))
+		}
+		for _, line := range lines {
+			if ansi.StringWidth(line) != 36 {
+				t.Fatalf("%c row width = %d, want 36", char, ansi.StringWidth(line))
+			}
+		}
+		m.kanaIndex = index
+		m.screen = ScreenGojuon
+		assertFits(t, m.View().Content, 80, 24)
+	}
+	if len(dotKanaPatterns) != len(gojuon) {
+		t.Fatalf("dot font has %d glyphs, want %d", len(dotKanaPatterns), len(gojuon))
+	}
+
+	m.width, m.height = 40, 18
+	_, dotted = m.kanaDisplay("あ")
+	if dotted {
+		t.Fatal("small terminals must fall back to the compact kana card")
+	}
+	m.width, m.height = 44, 22
+	if _, dotted = m.kanaDisplay("あ"); dotted {
+		t.Fatal("a terminal shorter than the complete dot view must use the compact card")
+	}
+
+	m.width, m.height = 80, 24
+	if _, dotted = m.kanaDisplay("が"); dotted {
+		t.Fatal("unsupported name characters must use the compact kana card")
+	}
+	m = press(m, tea.KeyEsc, "")
+	m = press(m, 'd', "d")
+	if m.dotMode {
+		t.Fatal("d must switch dot mode off")
+	}
+}
+
 func TestNameUnicodeAndCompletion(t *testing.T) {
 	m := initialModel()
 	m = press(m, '2', "2")

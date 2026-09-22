@@ -33,6 +33,7 @@ type model struct {
 	screen        Screen
 	width, height int
 	selected      int
+	dotMode       bool
 	kanaIndex     int
 	color         int
 	ticks         int
@@ -99,6 +100,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected = (m.selected + 1) % len(menuItems)
 			case "enter":
 				m.openScreen(Screen(m.selected + 1))
+			case "d":
+				m.dotMode = !m.dotMode
 			case "1", "2", "3", "4", "5":
 				m.selected = int(key[0] - '1')
 				m.openScreen(Screen(m.selected + 1))
