@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -100,32 +101,51 @@ func TestDisplayMode(t *testing.T) {
 	}
 }
 
-func TestNameUnicodeAndCompletion(t *testing.T) {
+func TestNameRoster(t *testing.T) {
 	m := initialModel()
 	m = press(m, '2', "2")
 	m = press(m, tea.KeyEnter, "")
-	if m.namePlaying {
-		t.Fatal("empty name must stay in the input screen")
+	if len(m.nameRoster) != 0 {
+		t.Fatal("an empty name must not be added to the roster")
 	}
 	next, _ := m.Update(tea.PasteMsg{Content: "たか\u3099👨‍👩‍👧q\n\t"})
 	m = press(next.(model), tea.KeyBackspace, "")
 	m = press(m, tea.KeyEnter, "")
-	want := []string{"た", "か\u3099", "👨‍👩‍👧"}
-	for i, char := range want {
-		if !m.namePlaying || len(m.name) != 3 || m.name[m.nameIndex] != char {
-			t.Fatalf("name character %d: %+v", i, m.name)
-		}
-		m = press(m, tea.KeySpace, " ")
+	if len(m.nameRoster) != 1 || m.nameRoster[0] != "たか\u3099👨‍👩‍👧" {
+		t.Fatalf("Unicode name was not added intact: %+v", m.nameRoster)
 	}
-	if m.nameIndex != len(m.name) || !strings.Contains(ansi.Strip(m.View().Content), "よめたね") {
-		t.Fatal("full name celebration missing")
+	if m.nameInput != "" {
+		t.Fatal("the input must be cleared after adding a name")
 	}
-	m = press(m, tea.KeySpace, " ")
-	if m.nameIndex != 0 {
-		t.Fatal("name did not restart")
+
+	for i := 1; i <= 7; i++ {
+		m.appendName(fmt.Sprintf("なまえ%d", i))
+		m = press(m, tea.KeyEnter, "")
 	}
+	view := ansi.Strip(m.View().Content)
+	if len(m.nameRoster) != 8 || !strings.Contains(view, "8にん") || !strings.Contains(view, "なまえ7") {
+		t.Fatalf("roster did not grow or show its latest entry: %+v", m.nameRoster)
+	}
+	if strings.Contains(view, "なまえ1") {
+		t.Fatal("a long roster must show the latest five names")
+	}
+	m = press(m, tea.KeyUp, "")
+	m = press(m, tea.KeyUp, "")
+	m = press(m, tea.KeyUp, "")
+	view = ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "たか\u3099👨‍👩‍👧") || strings.Contains(view, "なまえ7") {
+		t.Fatal("up must scroll back through the roster")
+	}
+	m = press(m, tea.KeyDown, "")
+	if m.nameScroll != 1 {
+		t.Fatalf("down must scroll toward newer names: offset %d", m.nameScroll)
+	}
+
 	m = press(m, tea.KeyEsc, "")
 	m = press(m, '2', "2")
+	if len(m.nameRoster) != 8 {
+		t.Fatal("the roster must survive returning to the menu")
+	}
 	m.appendName(strings.Repeat("あ", 10000))
 	if len(characters(m.nameInput)) > maxNameLength || len(m.nameInput) > 512 {
 		t.Fatal("long paste exceeded the input limit")

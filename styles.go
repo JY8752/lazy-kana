@@ -90,29 +90,7 @@ func (m model) playView() (string, string) {
 		body := lipgloss.JoinVertical(lipgloss.Center, parts...)
 		return body, "Space: つぎの もじ"
 	case ScreenName:
-		if !m.namePlaying {
-			value := m.nameInput
-			if value == "" {
-				value = "（たろう など）"
-			}
-			width := m.panelWidth() - 10
-			if ansi.StringWidth(value) > width-2 {
-				value = "…" + ansi.Cut(value, ansi.StringWidth(value)-(width-3), ansi.StringWidth(value))
-			}
-			input := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Width(width).
-				BorderForeground(lipgloss.Color("#72DDF7")).Render(m.accent().Render(value + " ▏"))
-			return lipgloss.JoinVertical(lipgloss.Center, "おうちのひとが なまえを いれてね", "", input, "",
-				fmt.Sprintf("%d / %d もじ · Backspace: けす", len(characters(m.nameInput)), maxNameLength)), "Enter: あそぶ"
-		}
-		if m.nameIndex == len(m.name) {
-			// Wrap at grapheme boundaries so long names remain visible.
-			name := wrapName(m.name, m.panelWidth()-12)
-			return lipgloss.JoinVertical(lipgloss.Center, colorful("✨ ★ ✨", m.color), "",
-				colorful(name, m.color), "", colorful("よめたね！", m.color+2)), "Space: もういちど"
-		}
-		display, _ := m.kanaDisplay(m.name[m.nameIndex])
-		return lipgloss.JoinVertical(lipgloss.Center, display, "",
-			fmt.Sprintf("%d / %d", m.nameIndex+1, len(m.name))), "Space: つぎの もじ"
+		return m.nameRosterView(), "Enter: ついか   ↑↓: めいぼ   Backspace: けす"
 	case ScreenMissing, ScreenMistake:
 		return m.questionView()
 	case ScreenTrain:
@@ -120,6 +98,42 @@ func (m model) playView() (string, string) {
 			m.accent().Render(strings.Repeat("─", m.laneWidth()))), "Space: つぎの ぎょう"
 	}
 	return "", ""
+}
+
+func (m model) nameRosterView() string {
+	value := m.nameInput
+	if value == "" {
+		value = "（なまえを いれてね）"
+	}
+	width := m.panelWidth() - 10
+	if ansi.StringWidth(value) > width-2 {
+		value = "…" + ansi.Cut(value, ansi.StringWidth(value)-(width-3), ansi.StringWidth(value))
+	}
+	input := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Width(width).
+		BorderForeground(lipgloss.Color("#72DDF7")).Render(m.accent().Render(value + " ▏"))
+
+	countText := fmt.Sprintf("✨ めいぼ  %dにん ✨", len(m.nameRoster))
+	maxStart := max(0, len(m.nameRoster)-5)
+	start := min(m.nameScroll, maxStart)
+	if len(m.nameRoster) > 5 {
+		countText = fmt.Sprintf("✨ めいぼ %dにん  %d〜%d ✨", len(m.nameRoster), start+1, min(start+5, len(m.nameRoster)))
+	}
+	count := colorful(countText, m.color)
+	rows := make([]string, 0, 5)
+	for i := start; i < min(start+5, len(m.nameRoster)); i++ {
+		name := ansi.Truncate(m.nameRoster[i], width-8, "…")
+		row := fmt.Sprintf("%2d  %s", i+1, name)
+		rows = append(rows, lipgloss.NewStyle().Width(width).Foreground(
+			lipgloss.Color(palette[(m.color+i)%len(palette)])).Render(row))
+	}
+	if len(rows) == 0 {
+		rows = append(rows, lipgloss.NewStyle().Width(width).Align(lipgloss.Center).
+			Foreground(lipgloss.Color("#8A958F")).Render("まだ だれも いないよ"))
+	}
+
+	parts := []string{"なまえを いれて Enter！", input, "", count}
+	parts = append(parts, rows...)
+	return lipgloss.JoinVertical(lipgloss.Center, parts...)
 }
 
 func (m model) kanaDisplay(char string) (string, bool) {
@@ -226,21 +240,6 @@ func (m model) trainView() string {
 		lines[i] = lipgloss.NewStyle().Width(m.laneWidth()).Render(line)
 	}
 	return strings.Join(lines, "\n")
-}
-
-func wrapName(chars []string, width int) string {
-	var b strings.Builder
-	col := 0
-	for _, char := range chars {
-		w := ansi.StringWidth(char)
-		if col+w > width && col > 0 {
-			b.WriteByte('\n')
-			col = 0
-		}
-		b.WriteString(char)
-		col += w
-	}
-	return b.String()
 }
 
 func fit(s string, width, height int) string {

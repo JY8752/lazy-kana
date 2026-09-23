@@ -38,9 +38,8 @@ type model struct {
 	color         int
 	ticks         int
 	nameInput     string
-	name          []string
-	nameIndex     int
-	namePlaying   bool
+	nameRoster    []string
+	nameScroll    int
 	questionRow   int
 	hiddenIndex   int
 	replacement   rune
@@ -78,7 +77,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nextTick()
 	case tea.PasteMsg:
-		if m.screen == ScreenName && !m.namePlaying {
+		if m.screen == ScreenName {
 			m.appendName(msg.Content)
 		}
 	case tea.KeyPressMsg:
@@ -108,12 +107,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.screen == ScreenName && !m.namePlaying {
+		if m.screen == ScreenName {
 			switch key {
 			case "enter":
-				m.name = characters(strings.TrimSpace(m.nameInput))
-				m.namePlaying = len(m.name) > 0
-				m.nameIndex = 0
+				name := strings.TrimSpace(m.nameInput)
+				if name != "" {
+					m.nameRoster = append(m.nameRoster, name)
+					m.nameScroll = max(0, len(m.nameRoster)-5)
+				}
+				m.nameInput = ""
+			case "up":
+				m.nameScroll = max(0, m.nameScroll-1)
+			case "down":
+				m.nameScroll = min(max(0, len(m.nameRoster)-5), m.nameScroll+1)
 			case "backspace", "delete":
 				chars := characters(m.nameInput)
 				if len(chars) > 0 {
@@ -130,12 +136,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.screen {
 			case ScreenGojuon:
 				m.kanaIndex = (m.kanaIndex + 1) % len(gojuon)
-			case ScreenName:
-				if m.nameIndex < len(m.name) {
-					m.nameIndex++
-				} else {
-					m.nameIndex = 0
-				}
 			case ScreenMissing, ScreenMistake:
 				if m.revealed {
 					m.newQuestion()
@@ -156,9 +156,6 @@ func (m *model) openScreen(screen Screen) {
 	switch screen {
 	case ScreenGojuon:
 		m.kanaIndex = 0
-	case ScreenName:
-		m.namePlaying = false
-		m.nameIndex = 0
 	case ScreenMissing, ScreenMistake:
 		m.newQuestion()
 	case ScreenTrain:
