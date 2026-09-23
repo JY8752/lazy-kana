@@ -3,6 +3,10 @@
 親子でキーボードに触って遊ぶ、ひらがなのターミナルおもちゃです。
 Go / Bubble Tea / Lip Glossで作った、小さなプロトタイプです。
 
+## デモ
+
+![かなあそびのデモ](assets/demo.gif)
+
 ## 起動
 
 Go 1.25以上と、日本語・絵文字が表示できるターミナルが必要です。
@@ -63,4 +67,10 @@ IMEの変換確定後、必要に応じてもう一度Enterを押してくださ
 go fmt ./...
 go vet ./...
 go test ./...
+```
+
+デモGIFは[VHS](https://github.com/charmbracelet/vhs)の台本から再生成できます。
+
+```bash
+vhs demo.tape
 ```
