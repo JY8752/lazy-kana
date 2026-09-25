@@ -1,4 +1,4 @@
-module lazy-kana
+module github.com/JY8752/lazy-kana
 
 go 1.25.0
 
