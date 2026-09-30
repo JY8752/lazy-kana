@@ -37,7 +37,7 @@ func (m model) View() tea.View {
 	} else if m.screen == ScreenMenu {
 		content = m.menuView()
 	} else {
-		title := menuItems[int(m.screen)-1]
+		title := m.currentMenuItems()[int(m.screen)-1]
 		body, hint := m.playView()
 		innerWidth := m.panelWidth() - 2
 		body = lipgloss.Place(innerWidth, 11, lipgloss.Center, lipgloss.Center, body)
@@ -56,7 +56,7 @@ func (m model) View() tea.View {
 func (m model) menuView() string {
 	var lines []string
 	lines = append(lines, colorful("🌈 かなあそび", m.color), "", "おして、ながめて、あそぼう。", "")
-	for i, item := range menuItems {
+	for i, item := range m.currentMenuItems() {
 		label := fmt.Sprintf("  %d  %s", i+1, item)
 		style := lipgloss.NewStyle().Width(30)
 		if i == m.selected {
@@ -71,7 +71,11 @@ func (m model) menuView() string {
 	if m.dotMode {
 		mode = "ドット"
 	}
-	lines = append(lines, "", "↑ ↓ 選択   Enter 決定", "d: もじ="+mode+"   q: おわり")
+	kanaMode := "ひらがな"
+	if m.katakanaMode {
+		kanaMode = "カタカナ"
+	}
+	lines = append(lines, "", "↑ ↓ 選択   Enter 決定", "k: かな="+kanaMode+"   d: もじ="+mode, "q: おわり")
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#BDA0FF")).Padding(1, 2).
 		Render(lipgloss.JoinVertical(lipgloss.Center, lines...))
@@ -80,12 +84,13 @@ func (m model) menuView() string {
 func (m model) playView() (string, string) {
 	switch m.screen {
 	case ScreenGojuon:
-		char := string(gojuon[m.kanaIndex])
+		kana := m.kana()
+		char := string(kana[m.kanaIndex])
 		display, dotted := m.kanaDisplay(char)
-		parts := []string{colorful("★  こんにちは！  ★", m.color), "", display, "", fmt.Sprintf("%d / %d", m.kanaIndex+1, len(gojuon))}
+		parts := []string{colorful("★  こんにちは！  ★", m.color), "", display, "", fmt.Sprintf("%d / %d", m.kanaIndex+1, len(kana))}
 		if dotted {
 			// Give the oversized glyph the vertical space normally used by the greeting.
-			parts = []string{display, "", fmt.Sprintf("%d / %d", m.kanaIndex+1, len(gojuon))}
+			parts = []string{display, "", fmt.Sprintf("%d / %d", m.kanaIndex+1, len(kana))}
 		}
 		body := lipgloss.JoinVertical(lipgloss.Center, parts...)
 		return body, "Space: つぎの もじ"
@@ -94,7 +99,7 @@ func (m model) playView() (string, string) {
 	case ScreenMissing, ScreenMistake:
 		return m.questionView()
 	case ScreenTrain:
-		return lipgloss.JoinVertical(lipgloss.Center, colorful("つぎは、"+gojuonRows[m.trainRow]+" えき！", m.color), "", m.trainView(), "",
+		return lipgloss.JoinVertical(lipgloss.Center, colorful("つぎは、"+m.rows()[m.trainRow]+" えき！", m.color), "", m.trainView(), "",
 			m.accent().Render(strings.Repeat("─", m.laneWidth()))), "Space: つぎの ぎょう"
 	}
 	return "", ""
@@ -173,7 +178,7 @@ func (m model) kanaCard(char string) string {
 }
 
 func (m model) questionView() (string, string) {
-	row := []rune(gojuonRows[m.questionRow])
+	row := []rune(m.rows()[m.questionRow])
 	cells := make([]string, len(row))
 	for i, r := range row {
 		char := string(r)
@@ -214,7 +219,7 @@ func (m model) questionView() (string, string) {
 }
 
 func (m model) trainLines() []string {
-	chars := characters(gojuonRows[m.trainRow])
+	chars := characters(m.rows()[m.trainRow])
 	cargo := " " + strings.Join(chars, " ") + " "
 	roof := strings.Repeat("─", ansi.StringWidth(cargo))
 	return []string{
