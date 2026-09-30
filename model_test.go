@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -76,8 +77,8 @@ func TestDisplayMode(t *testing.T) {
 		m.screen = ScreenGojuon
 		assertFits(t, m.View().Content, 80, 24)
 	}
-	if len(dotKanaPatterns) != len(gojuon) {
-		t.Fatalf("dot font has %d glyphs, want %d", len(dotKanaPatterns), len(gojuon))
+	if len(dotKanaPatterns) != len(gojuon)+len(katakana) {
+		t.Fatalf("dot font has %d glyphs, want %d", len(dotKanaPatterns), len(gojuon)+len(katakana))
 	}
 
 	m.width, m.height = 40, 18
@@ -98,6 +99,85 @@ func TestDisplayMode(t *testing.T) {
 	m = press(m, 'd', "d")
 	if m.dotMode {
 		t.Fatal("d must switch dot mode off")
+	}
+}
+
+func TestKatakanaMode(t *testing.T) {
+	m := initialModel()
+	if m.katakanaMode {
+		t.Fatal("hiragana must be the default on startup")
+	}
+	menu := ansi.Strip(m.View().Content)
+	if !strings.Contains(menu, "k: かな=ひらがな") || !strings.Contains(menu, "あいうえお") {
+		t.Fatal("the menu must show the hiragana mode and its shortcut")
+	}
+
+	m = press(m, 'k', "k")
+	if !m.katakanaMode {
+		t.Fatal("k must enable katakana mode from the menu")
+	}
+	menu = ansi.Strip(m.View().Content)
+	if !strings.Contains(menu, "k: かな=カタカナ") || !strings.Contains(menu, "アイウエオ") || !strings.Contains(menu, "カタカナ列車") {
+		t.Fatal("the menu must show the katakana mode and katakana titles")
+	}
+
+	m = press(m, 'd', "d")
+	for _, char := range katakana {
+		display, dotted := m.kanaDisplay(string(char))
+		if !dotted {
+			t.Fatalf("%c is missing its dot-art glyph", char)
+		}
+		lines := strings.Split(ansi.Strip(display), "\n")
+		if len(lines) != 14 {
+			t.Fatalf("%c has %d rows, want 14", char, len(lines))
+		}
+		if strings.Count(ansi.Strip(display), "█") < 20 {
+			t.Fatalf("%c dot art is unexpectedly empty", char)
+		}
+		for _, line := range lines {
+			if ansi.StringWidth(line) != 36 {
+				t.Fatalf("%c row width = %d, want 36", char, ansi.StringWidth(line))
+			}
+		}
+	}
+
+	m = press(m, '1', "1")
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "アイウエオ") {
+		t.Fatal("the play screen must use the katakana title")
+	}
+	m = press(m, 'k', "k")
+	if !m.katakanaMode {
+		t.Fatal("k must not change modes during play")
+	}
+	for _, want := range katakana {
+		if got := m.kana()[m.kanaIndex]; got != want {
+			t.Fatalf("got %c, want %c", got, want)
+		}
+		m = press(m, tea.KeySpace, " ")
+	}
+	if m.kanaIndex != 0 {
+		t.Fatal("katakana did not wrap to ア")
+	}
+
+	m = press(m, tea.KeyEsc, "")
+	m = press(m, '3', "3")
+	for i := 0; i < 100; i++ {
+		row := []rune(katakanaRows[m.questionRow])
+		if !slices.Contains(katakana, row[m.hiddenIndex]) || !slices.Contains(katakana, m.replacement) {
+			t.Fatal("katakana question used a character from another mode")
+		}
+		m.newQuestion()
+	}
+
+	m = press(m, tea.KeyEsc, "")
+	m = press(m, '5', "5")
+	if got := strings.Join(characters(m.rows()[m.trainRow]), ""); got != "アイウエオ" {
+		t.Fatalf("katakana train started with %q", got)
+	}
+	m = press(m, tea.KeyEsc, "")
+	m = press(m, 'k', "k")
+	if m.katakanaMode {
+		t.Fatal("k must switch back to hiragana")
 	}
 }
 

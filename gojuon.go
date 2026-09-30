@@ -8,3 +8,10 @@ var gojuonRows = []string{
 }
 
 var gojuon = []rune(strings.Join(gojuonRows, ""))
+
+var katakanaRows = []string{
+	"アイウエオ", "カキクケコ", "サシスセソ", "タチツテト", "ナニヌネノ",
+	"ハヒフヘホ", "マミムメモ", "ヤユヨ", "ラリルレロ", "ワヲン",
+}
+
+var katakana = []rune(strings.Join(katakanaRows, ""))

@@ -25,7 +25,9 @@ const (
 
 const maxNameLength = 32
 
-var menuItems = []string{"あいうえお", "おなまえ", "むし食い", "まちがい探し", "ひらがな列車 🚂"}
+var hiraganaMenuItems = []string{"あいうえお", "おなまえ", "むし食い", "まちがい探し", "ひらがな列車 🚂"}
+
+var katakanaMenuItems = []string{"アイウエオ", "おなまえ", "むし食い", "まちがい探し", "カタカナ列車 🚂"}
 
 type tickMsg time.Time
 
@@ -34,6 +36,7 @@ type model struct {
 	width, height int
 	selected      int
 	dotMode       bool
+	katakanaMode  bool
 	kanaIndex     int
 	color         int
 	ticks         int
@@ -94,13 +97,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q":
 				return m, tea.Quit
 			case "up":
-				m.selected = (m.selected + len(menuItems) - 1) % len(menuItems)
+				m.selected = (m.selected + len(hiraganaMenuItems) - 1) % len(hiraganaMenuItems)
 			case "down":
-				m.selected = (m.selected + 1) % len(menuItems)
+				m.selected = (m.selected + 1) % len(hiraganaMenuItems)
 			case "enter":
 				m.openScreen(Screen(m.selected + 1))
 			case "d":
 				m.dotMode = !m.dotMode
+			case "k":
+				m.katakanaMode = !m.katakanaMode
 			case "1", "2", "3", "4", "5":
 				m.selected = int(key[0] - '1')
 				m.openScreen(Screen(m.selected + 1))
@@ -135,7 +140,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.nextColor()
 			switch m.screen {
 			case ScreenGojuon:
-				m.kanaIndex = (m.kanaIndex + 1) % len(gojuon)
+				m.kanaIndex = (m.kanaIndex + 1) % len(m.kana())
 			case ScreenMissing, ScreenMistake:
 				if m.revealed {
 					m.newQuestion()
@@ -143,7 +148,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.revealed = true
 				}
 			case ScreenTrain:
-				m.trainRow = (m.trainRow + 1) % len(gojuonRows)
+				m.trainRow = (m.trainRow + 1) % len(m.rows())
 				m.trainX = m.laneWidth() - 2
 			}
 		}
@@ -166,14 +171,37 @@ func (m *model) openScreen(screen Screen) {
 
 func (m *model) nextColor() { m.color = (m.color + 1) % len(palette) }
 
+func (m model) rows() []string {
+	if m.katakanaMode {
+		return katakanaRows
+	}
+	return gojuonRows
+}
+
+func (m model) kana() []rune {
+	if m.katakanaMode {
+		return katakana
+	}
+	return gojuon
+}
+
+func (m model) currentMenuItems() []string {
+	if m.katakanaMode {
+		return katakanaMenuItems
+	}
+	return hiraganaMenuItems
+}
+
 func (m *model) newQuestion() {
-	m.questionRow = rand.IntN(len(gojuonRows))
-	row := []rune(gojuonRows[m.questionRow])
+	rows := m.rows()
+	kana := m.kana()
+	m.questionRow = rand.IntN(len(rows))
+	row := []rune(rows[m.questionRow])
 	m.hiddenIndex = rand.IntN(len(row))
 	// Choose a different kana without retries, even if keys are mashed.
 	correct := row[m.hiddenIndex]
-	index := slices.Index(gojuon, correct)
-	m.replacement = gojuon[(index+1+rand.IntN(len(gojuon)-1))%len(gojuon)]
+	index := slices.Index(kana, correct)
+	m.replacement = kana[(index+1+rand.IntN(len(kana)-1))%len(kana)]
 	m.revealed = false
 }
 
